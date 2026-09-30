@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Siteswap Generator</title>
+<style>
+:root{--bg:#f7f6f2;--fg:#1d1d1b;--mut:#6b6a63;--card:#fff;--bd:#dddbd2;--ac:#2d5be3;--acf:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161615;--fg:#eeede8;--mut:#9a988f;--card:#20201e;--bd:#37362f;--ac:#7c9cff;--acf:#111}}
+:root[data-theme="dark"]{--bg:#161615;--fg:#eeede8;--mut:#9a988f;--card:#20201e;--bd:#37362f;--ac:#7c9cff;--acf:#111}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.6rem;margin:0 0 4px}
+p.sub{color:var(--mut);margin:0 0 18px}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mut);gap:4px}
+input,select{font:inherit;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg);width:100%;box-sizing:border-box}
+.row{display:flex;gap:8px}
+.wide{grid-column:1/-1}
+button{font:inherit;background:var(--ac);color:var(--acf);border:0;border-radius:8px;padding:10px 18px;cursor:pointer;font-weight:600}
+#status{color:var(--mut);margin:14px 0 8px;font-size:.9rem}
+details.adv summary{cursor:pointer;font-weight:600;color:var(--mut)}
+.advbody{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-top:12px}
+h2{font-size:1rem;margin:22px 0 8px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+h2 button{padding:6px 12px;font-size:.85rem}
+.list{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:6px 14px}
+.item{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--bd);font:600 1.05rem ui-monospace,Menlo,monospace;cursor:pointer;user-select:none}
+.item:last-child{border-bottom:0}
+.gen{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+label.inl{flex-direction:row;align-items:center;gap:6px;color:var(--fg)}
+#count:disabled{opacity:.4}
+.item .tr{display:inline-block;width:var(--trw,0);margin-right:var(--trg,0);text-align:right;color:var(--mut)}
+.item.off span{opacity:.4;text-decoration:line-through}
+pre#remtxt{margin:0;padding:10px 14px;background:var(--card);border:1px solid var(--bd);border-radius:12px;font:600 1.05rem/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-x:auto}
+.hint{font-size:.8rem;color:var(--mut);margin-top:16px}
+</style>
+</head>
+<body>
+<main>
+<h1>Siteswap Generator</h1>
+<p class="sub">Find vanilla (async, one throw per beat) siteswaps that match your constraints.</p>
+
+<div class="panel">
+  <label>Objects
+    <input id="n" value="3">
+    <small>ranges and singles, e.g. 3-5, 7</small></label>
+  <label>Periods
+    <input id="per" value="3-5, 7">
+    <small>ranges and singles, e.g. 3-5, 7</small></label>
+  <label>Max throw height
+    <input id="hmax" type="number" min="1" max="20" value="7"></label>
+  <label>Must contain sequences
+    <input id="inc" placeholder="e.g. 5, 44?, a1">
+    <small>comma-separated, ?=any throw</small></label>
+  <label>Exclude sequences
+    <input id="exc" placeholder="e.g. 0, 74, 5?5">
+    <small>comma-separated, ?=any throw</small></label>
+  <details class="wide adv">
+    <summary>Advanced options</summary>
+    <div class="advbody">
+      <label>Must contain causal throws
+    <input id="cinc" placeholder="e.g. 4>7, 5>?>3">
+    <small>e.g. 4>7: a throw of height 4 causes a 7</small></label>
+      <label>Exclude causal throws
+    <input id="cexc" placeholder="e.g. 5>0, 4>4">
+    <small>same notation, chains like 5>1>3 work</small></label>
+      <label><span><input type="checkbox" id="prime" style="width:auto"> Prime only (no repeated state)</span></label>
+      <label>Number of hands (for causals)
+        <input id="hands" type="number" min="1" max="6" value="2"></label>
+      <label>State type
+        <select id="gs"><option value="any">Any</option><option value="ground">Ground state only</option><option value="excited">Excited state only</option></select></label>
+    </div>
+  </details>
+  <div class="wide gen">
+    <button id="go">Generate</button>
+    <label class="inl"><input type="checkbox" id="all" style="width:auto"> Show all</label>
+    <label class="inl">Random count <input id="count" type="number" min="1" max="500" value="10" style="width:80px"></label>
+  </div>
+</div>
+
+<div id="status"></div>
+<div id="out" hidden>
+  <h2>Generated <button id="reroll">Re-roll</button></h2>
+  <div class="list" id="picked"></div>
+  <p class="hint" style="margin:6px 0 0">Click a pattern to remove it from (or add it back to) the list below.</p>
+  <h2><span id="remhead">Remaining</span> <button id="copy">Copy</button></h2>
+  <pre id="remtxt"></pre>
+</div>
+<p class="hint">Throws above 9 use letters (a=10, b=11…). Rotations are treated as the same pattern.</p>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const ch = t => t.toString(36);
+const parseSeqs = s => s.split(/[,;\s]+/).filter(Boolean).map(w => [...w.toLowerCase()].map(c => c === '?' ? null : parseInt(c, 36))).filter(a => a.length && a.every(x => !isNaN(x)));
+const parseRanges = (s, cap) => {
+  const set = new Set();
+  for (const tok of s.split(/[,;\s]+/).filter(Boolean)) {
+    const m = tok.match(/^(\d+)(?:-(\d+))?$/); if (!m) continue;
+    let a = +m[1], b = m[2] ? +m[2] : a; if (a > b) [a, b] = [b, a];
+    for (let i = Math.max(1, a); i <= Math.min(b, cap); i++) set.add(i);
+  }
+  return [...set].sort((x, y) => x - y);
+};
+// does cyclic sequence seq contain sub (wrapping around the end)?
+const cycContains = (seq, sub) => {
+  const p = seq.length, L = sub.length, ext = [];
+  for (let i = 0; i < p + L - 1; i++) ext.push(seq[i % p]);
+  for (let i = 0; i < p; i++) { let ok = true; for (let j = 0; j < L; j++) if (sub[j] !== null && ext[i + j] !== sub[j]) { ok = false; break; } if (ok) return true; }
+  return false;
+};
+const parseCausal = s => s.split(/[,;\s]+/).filter(Boolean).map(w => w.split('>').map(c => c === '?' ? null : (c.length === 1 ? parseInt(c, 36) : NaN))).filter(a => a.length >= 2 && a.every(x => !isNaN(x)));
+// causal chain a>b>c: a throw of height h at beat i causes the throw at beat i+h-hands (the hand must be emptied before the ball lands)
+const hasCausal = (seq, chain, hands) => {
+  const p = seq.length;
+  for (let i = 0; i < p; i++) {
+    let idx = i, ok = true;
+    for (let k = 0; k < chain.length; k++) {
+      const v = seq[idx];
+      if (chain[k] !== null && v !== chain[k]) { ok = false; break; }
+      if (k < chain.length - 1) { if (v === 0) { ok = false; break; } idx = (((idx + v - hands) % p) + p) % p; }
+    }
+    if (ok) return true;
+  }
+  return false;
+};
+const endsWith = (seq, sub) => { const d = seq.length - sub.length; if (d < 0) return false; for (let j = 0; j < sub.length; j++) if (sub[j] !== null && seq[d + j] !== sub[j]) return false; return true; };
+const pop = x => { let c = 0; while (x) { c += x & 1; x >>= 1; } return c; };
+
+function canonical(seq) {           // lexicographically largest rotation
+  const p = seq.length; let best = seq;
+  for (let r = 1; r < p; r++) {
+    const rot = seq.slice(r).concat(seq.slice(0, r));
+    for (let i = 0; i < p; i++) { if (rot[i] !== best[i]) { if (rot[i] > best[i]) best = rot; break; } }
+  }
+  return best;
+}
+function primitive(seq) {
+  const p = seq.length;
+  for (let d = 1; d < p; d++) if (p % d === 0 && seq.every((v, i) => v === seq[i % d])) return false;
+  return true;
+}
+
+function generate(o) {
+  const found = new Map(); let nodes = 0, truncated = false;
+  const H = o.hmax;
+  const states = [];
+  for (let s = 0; s < (1 << H); s++) if (o.ns.has(pop(s))) states.push(s);
+
+  for (const p of o.periods) {
+    for (const start of states) {
+      const seq = [], vis = [start];
+      const dfs = s => {
+        if (truncated) return;
+        if (++nodes > 3e6) { truncated = true; return; }
+        if (seq.length === p) { if (s === start) accept(seq, vis); return; }
+        const opts = (s & 1)
+          ? Array.from({length: H - Math.max(1, o.hmin) + 1}, (_, i) => i + Math.max(1, o.hmin))
+          : [0];
+        const n = s >> 1;
+        for (const t of opts) {
+          if (t === 0) { if (o.hmin > 0) continue; }
+          else if (n & (1 << (t - 1))) continue;
+          const ns = t === 0 ? n : n | (1 << (t - 1));
+          if (o.prime && seq.length + 1 < p && vis.includes(ns)) continue;
+          seq.push(t);
+          if (o.exc.some(x => endsWith(seq, x))) { seq.pop(); continue; }
+          vis.push(ns);
+          dfs(ns);
+          seq.pop(); vis.pop();
+        }
+      };
+      dfs(start);
+      if (truncated) break;
+    }
+    if (truncated) break;
+  }
+
+  function accept(seq, vis) {
+    if (!primitive(seq)) return;
+    for (const r of o.inc) if (!cycContains(seq, r)) return;
+    for (const x of o.exc) if (cycContains(seq, x)) return;
+    for (const c of o.cinc) if (!hasCausal(seq, c, o.hands)) return;
+    for (const c of o.cexc) if (hasCausal(seq, c, o.hands)) return;
+    const b = seq.reduce((a, c) => a + c, 0) / seq.length;
+    const ground = (1 << b) - 1;
+    const isGround = vis.slice(0, -1).includes(ground);
+    if (o.gs === 'ground' && !isGround) return;
+    if (o.gs === 'excited' && isGround) return;
+    const c = canonical(seq.slice());
+    found.set(c.map(ch).join(''), c.length);
+  }
+  return {list: [...found.entries()], truncated};
+}
+
+$('go').onclick = () => {
+  const v = id => +$(id).value;
+  const o = {
+    ns: new Set(parseRanges($('n').value, 12)), periods: parseRanges($('per').value, 16),
+    hmin: 0, hmax: Math.max(v('hmax'), 1),
+    gs: $('gs').value, inc: parseSeqs($('inc').value), exc: parseSeqs($('exc').value),
+    prime: $('prime').checked,
+    hands: Math.max(1, v('hands')), cinc: parseCausal($('cinc').value), cexc: parseCausal($('cexc').value)
+  };
+  if (!o.ns.size) { $('status').textContent = 'Enter at least one object count, e.g. 3-5'; return; }
+  if (!o.periods.length) { $('status').textContent = 'Enter at least one period, e.g. 3-5, 7'; return; }
+  if (o.hmax > 20) { $('status').textContent = 'Max throw above 20 gets slow; lower it.'; return; }
+  const {list, truncated} = generate(o);
+  list.sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? 1 : -1));
+  pool = list; last = {H: o.hmax};
+  $('status').textContent = `${list.length} pattern${list.length === 1 ? '' : 's'} found` +
+    (truncated ? ' (search cut off, narrow the constraints for full results)' : '');
+  pick();
+};
+let pool = [], picked = [], off = new Set(), last = {n: 0, H: 0}, trW = 0;
+const bfsCache = {};
+function bfs(n, H) {           // shortest throws from the ground state to every state
+  const key = n + ',' + H; if (bfsCache[key]) return bfsCache[key];
+  const g = (1 << n) - 1, par = new Map([[g, null]]), q = [g];
+  for (let qi = 0; qi < q.length; qi++) {
+    const st = q[qi], nx = st >> 1;
+    const opts = (st & 1) ? Array.from({length: H}, (_, i) => i + 1) : [0];
+    for (const t of opts) {
+      if (t && (nx & (1 << (t - 1)))) continue;
+      const ns = t ? nx | (1 << (t - 1)) : nx;
+      if (!par.has(ns)) { par.set(ns, [st, t]); q.push(ns); }
+    }
+  }
+  return bfsCache[key] = par;
+}
+function stateAt(seq, r, H) {  // landing-beat mask just before throwing seq[r], pattern repeating forever
+  const p = seq.length; let st = 0;
+  for (let m = 1; m <= H; m++) { const h = seq[((r - m) % p + p) % p]; if (h >= m) st |= 1 << (h - m); }
+  return st;
+}
+function present(str) {        // -> {pat, tr}: excited patterns get the rotation with the shortest entry from ground
+  const seq = [...str].map(c => parseInt(c, 36)), p = seq.length, {H} = last, n = seq.reduce((a, c) => a + c, 0) / p;
+  const g = (1 << n) - 1, par = bfs(n, H);
+  let best = null;
+  for (let r = 0; r < p; r++) {
+    const st = stateAt(seq, r, H);
+    if (st === g || !par.has(st)) return {pat: str, tr: ''};
+    const path = []; let cur = st;
+    while (par.get(cur)) { const [pv, t] = par.get(cur); path.push(t); cur = pv; }
+    path.reverse();
+    const rot = seq.slice(r).concat(seq.slice(0, r)).map(ch).join('');
+    if (!best || path.length < best.tr.length || (path.length === best.tr.length && rot > best.pat)) best = {pat: rot, tr: path.map(ch).join('')};
+  }
+  return best;
+}
+function pick() {
+  const k = $('all').checked ? pool.length : Math.max(1, +$('count').value || 1);
+  const a = pool.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  picked = a.slice(0, k).sort((x, y) => x[1] - y[1] || (x[0] < y[0] ? 1 : -1)).map(x => present(x[0]));
+  trW = Math.max(0, ...picked.map(x => x.tr ? x.tr.length + 2 : 0));
+  off = new Set();
+  $('out').hidden = picked.length === 0;
+  const box = $('picked'); box.innerHTML = '';
+  box.style.setProperty('--trw', trW + 'ch'); box.style.setProperty('--trg', trW ? '1ch' : '0px');
+  for (const x of picked) {
+    const row = document.createElement('div'); row.className = 'item';
+    const tr = document.createElement('span'); tr.className = 'tr'; tr.textContent = x.tr ? `(${x.tr})` : '';
+    const t = document.createElement('span'); t.textContent = x.pat;
+    row.onclick = () => { off.has(x.pat) ? off.delete(x.pat) : off.add(x.pat); row.classList.toggle('off', off.has(x.pat)); remaining(); };
+    row.append(tr, t); box.appendChild(row);
+  }
+  remaining();
+}
+function remaining() {
+  const r = picked.filter(x => !off.has(x.pat));
+  $('remhead').textContent = `Remaining (${r.length})`;
+  $('remtxt').textContent = r.map(x => (trW ? (x.tr ? `(${x.tr})` : '').padStart(trW) + ' ' : '') + x.pat).join('\n');
+}
+$('reroll').onclick = pick;
+$('all').onchange = () => { $('count').disabled = $('all').checked; if (pool.length) pick(); };
+$('copy').onclick = () => { try { navigator.clipboard.writeText($('remtxt').textContent); $('copy').textContent = 'Copied'; setTimeout(() => $('copy').textContent = 'Copy', 1200); } catch (e) {} };
+$('go').click();
+</script>
+</body>
+</html>
